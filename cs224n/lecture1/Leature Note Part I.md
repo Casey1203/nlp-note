@@ -66,3 +66,11 @@
 
 计数矩阵的结果是
 
+![Image text](https://raw.githubusercontent.com/Casey1203/nlp-note/master/cs224n/lecture1/img/countmat.png)
+
+### 3.3 将SVD方法运用到共现矩阵上
+
+在矩阵$X$上运用SVD分解，观察奇异值（分解后的$S$矩阵的对角线）。基于期望解释的方差百分比$\frac{\sum_{i=1}^k{\sigma_i}}{\sum_{i=1}^{|V|}{\sigma_i}}$，选择在某个位置$k$截断。我们认为子矩阵$U_{1:|V|,1:k}$作为我们的词嵌入矩阵。因此这就是单词表中的每个单词的$k$维表示。
+
+下面是在共现矩阵$X$上使用SVD分解的过程
+
