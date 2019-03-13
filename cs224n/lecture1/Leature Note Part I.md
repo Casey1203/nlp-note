@@ -74,3 +74,7 @@
 
 下面是在共现矩阵$X$上使用SVD分解的过程
 
+![Image text](https://raw.githubusercontent.com/Casey1203/nlp-note/master/cs224n/lecture1/img/svdx.png)
+
+通过选择前$k$个奇异值对应的奇异向量，达到降维的效果。
+
