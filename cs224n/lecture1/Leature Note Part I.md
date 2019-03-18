@@ -163,5 +163,76 @@ $$
 $$
 我们用随机梯度下降法来更新所有相关词语的词向量$u_c$和$v_j$。
 
+### 4.3 Skip-Gram模型
 
+另外一个方法是，给定中心词“jumped”，模型要能够预测或产生出周围的词语"The", "cat", "over", "the", "puddle"。我们把单词"jumped"称为上下文。并且称呼这类模型为Skip-Gram模型。
 
+接下来我们讨论Skip-Gram模型。初始设置是一样的，只不过我们互换了在CBOW中$x$和$y$的位置，即在CBOW中的$x$是在Skip-Gram的$y$。输入的中心词的独热向量表示为$x$（没有下标的原因是它只有一个词语）。输出为$y^{(j)}$。和CBOW一样，我们定义矩阵$\mathcal{V}$和$\mathcal{U}$。
+
+我们将这个模型按照以下步骤分解
+
+1. 产生输入的中心词独热向量$x \in \mathbb{R}^{|V|}$
+2. 产生中心词的词嵌入向量$v_{c}=\mathcal{V} x\in \mathbb{R}^n$
+3. 产生打分矩阵$z=U_{l v}$
+4. 将打分矩阵转换为概率$\hat{y}=\operatorname{softmax}(z)$。注意到$y^{(c-m)}, \ldots, y^{(c-1)}, y^{(c+1)}, \ldots, y^{(c+m)}$是每个上下文单词的概率。
+5. 我们希望产生的概率向量能够和真实的独热概率向量$y^{(c-m)}, \ldots, y^{(c-1)}, y^{(c+1)}, \ldots, y^{(c+m)}$匹配上。
+
+像在CBOW中，我们需要产生一个目标函数来评估模型。一个关键的不同点在于，我们引入了朴素贝叶斯的假设来分解概率。如果你之前没有看过朴素贝叶斯，那么可以简单的理解为，这是一个很强（简单）的条件独立假设。换句话说，给定一个中心词，所有输出的周围词语是完全独立的。
+$$
+\begin{aligned} \text { minimize } J &=-\log P\left(w_{c-m}, \ldots, w_{c-1}, w_{c+1}, \ldots, w_{c+m} | w_{c}\right) \\ &=-\log \prod_{j=0, j \neq m}^{2 m} P\left(w_{c-m+j} | w_{c}\right) \\ &=-\log \prod_{j=0, j \neq m}^{2 m} P\left(u_{c-m+j} | v_{c}\right) \\ 
+&=-\log \prod_{j=0, j \neq m}^{2 m} \frac{\exp{u^T_{c-m+j}v_c}}{\sum_{k=1}^{|V|}{\exp{u_k^Tv_c}}}\\ &=-\sum_{j=0, j \neq m}^{2 m} u_{c-m+j}^{T} v_{c}+2 m \log \sum_{k=1}^{|V|} \exp \left(u_{k}^{T} v_{c}\right) \end{aligned}
+$$
+有了这个目标函数，我们可以计算对于未知变量的梯度，在每次迭代中，通过随机梯度下降法来更新它们。
+
+注意到
+$$
+\begin{aligned} J &=-\sum_{j=0, j \neq m}^{2 m} \log P\left(u_{c-m+j} | v_{c}\right) \\ &=\sum_{j=0, j \neq m}^{2 m} H\left(\hat{y}, y_{c-m+j}\right) \end{aligned}
+$$
+其中$H\left(\hat{y}, y_{c-m+j}\right)$是概率向量$\hat{y}$和独热向量$y_{c-m+j}$只见的交叉熵。
+
+### 4.4 负采样
+
+再看一遍目标函数，注意到对$|V|$求和的计算量很大。每次更新或者是计算目标函数，我们都要执行复杂度为$O(|V|)$的运算，这会造成百万级别的计算开销。一个简单的想法是，我们可以近似求解。
+
+每个训练步骤中，我们不采用再整个单词表上做循环的操作，而是仅仅采样出一些负的例子。我们从一个噪声分布$P_n(w)$中采样，这个噪声分布的概率和单词表出现的频率的顺序是一致的。r为了强调引入负采样机制后的问题，我们必须将以下内容进行更新。
+
+目标函数、梯度、更新规则。
+
+MIKOLOV ET AL.在论文Distributed Representations of Words and Phrases and their Compositionality中介绍了负采样。当在Skip-Gram模型中运用负采样，事实上优化的目标就变了。考虑到单词和上下文的组合$(w,c)$。这个组合是来自于训练数据的吗？我们定义$P(D=1|w,c)$表示这个组合来自于语料数据的概率。相对应的，$P(D=0|w,c)$表示组合$(w,c)$不是来自于语料数据的概率。首先，我们利用sigmoid函数来对概率$P(D=1|w,c)$建模：
+$$
+P(D=1 | w, c, \theta)=\sigma\left(v_{c}^{T} v_{w}\right)=\frac{1}{1+e^{\left(-v_{c}^{T} v_{w}\right)}}
+$$
+现在，我们建立了一个新的目标函数，如果语料库中出现的单词与上下文组合，我们试图最大化在$P(D=1|w,c)$。相反，如果单词与上下文组合没有出现在语料库中，我们想要最大化$P(D=0|w,c)$。我们对这两个概率简单使用最大似然的方法来（参数$\theta$在这里的参数是$\mathcal{V}$和$\mathcal{U}$）
+$$
+\begin{aligned} \theta &=\underset{\theta}{\operatorname{argmax}} \prod_{(w, c) \in D} P(D=1 | w, c, \theta) \prod_{(w, c) \in \tilde{D}} P(D=0 | w, c, \theta) \\ &=\underset{\theta}{\operatorname{argmax}} \prod_{(w, c) \in D} P(D=1 | w, c, \theta) \prod_{(w, c) \in \overline{D}}(1-P(D=1 | w, c, \theta)) \\ &
+{=\operatorname{argmax} \sum_{\theta} \log P(D=1 | w, c, \theta)+\sum_{(w, \mathcal{C}) \in \tilde{D}} \log (1-P(D=1 | w, c, \theta))} \\ &{=\underset{\theta}{\operatorname{argmax}} \sum_{(w, c) \in D} \log \frac{1}{1+\exp \left(-u_{w}^{T} v_{c}\right)}+\sum_{(w, c) \in \tilde{D}} \log \left(1-\frac{1}{1+\exp \left(-u_{w}^{T} v_{c}\right)}\right)}\\
+&=\underset{\theta}{\operatorname{argmax}} \sum_{(w, c) \in D} \log \frac{1}{1+\exp \left(-u_{w}^{T} v_{c}\right)}+\sum_{(w, c) \in \tilde{D}} \log \left(\frac{1}{1+\exp \left(u_{w}^{T} v_{c}\right)}\right)
+\end{aligned}
+$$
+最大化似然函数和最小化负对数似然是一样的，因此
+$$
+J=-\sum_{(w, c) \in D} \log \frac{1}{1+\exp \left(-u_{i w}^{T} v_{c}\right)}-\sum_{(w, c) \in \tilde{D}} \log \left(\frac{1}{1+\exp \left(u_{w}^{T} v_{c}\right)}\right)
+$$
+其中，$\tilde{D}$是“错误”或“负”的语料，例如有"stock boil fish is toy"这样的句子。不正常的句子出现的概率比较低。我们可以通过随机在词语集中采样，从而生成数据集$\tilde{D}$。
+
+对于Skip-Graｍ，在给定了中心单词$c$的情况下，观察到上下文单词$c-m+j$的目标函数就更新为
+$$
+-\log \sigma\left(u_{c-m+j}^{T} \cdot v_{c}\right)-\sum_{k=1}^{K} \log \sigma\left(-\tilde{u}_{k}^{T} \cdot v_{c}\right)
+$$
+对于CBOW，给定了上下文单词向量$\hat{v}=\frac{v_{c-m}+v_{c-m+1}+\ldots+v_{c+m}}{2 m}$，观察中心词向量$u_c$的目标函数更新为
+$$
+-\log \sigma\left(u_{c}^{T} \cdot \hat{v}\right)-\sum_{k=1}^{K} \log \sigma\left(-\tilde{u}_{k}^{T} \cdot \hat{v}\right)
+$$
+在上面的表达式中，$\left\{\tilde{u}_{k} | k=1 \ldots K\right\}$是从$P_n(w)$中采样出来的。我们来讨论一下$P_n(w)$长什么样。有很多关于如何才能使得近似得最好的讨论。在许多研究中，似乎是单元模型的$3/4$次方可以做到最好。为什么是$3/4$，这里有一个例子也许对理解有帮助。
+$$
+\begin{array}{c}{\text { is: } 0.9^{3 / 4}=0.92} \\ {\text { Constitution: } 0.09^{3 / 4}=0.16} \\ {\text { bombastic: } 0.01^{3 / 4}=0.032}\end{array}
+$$
+"Bombastic"被采样到的概率和原来比起来多了３倍，而"is"只是多了小数点的零头。
+
+### 4.5 层次softmax
+
+Mikolov et al.同样在论文中描述了层次softmax，比普通的softmax要快上许多。实践中，层次softmax对不频繁的单词表现更好，而负采样在频繁的单词和低纬度的情况下表现更好。
+
+层次softmax使用了二叉树来代表单词表中的所有单词。每个叶子是一个单词。从根节点到叶子节点的路径是唯一的。在这个模型中，没有输出词语的表示形式。相反，每个图中的节点（除了根和叶）和模型要学习的向量都有关系。
+
+在这个模型中，在给定向量$w_i$的情况下，词语$w$的概率$P(w|w_i)$，等于从根结点开始随机游走，走到词语$w$对应的叶子节点的概率。这种结构的主要有点是在计算概率的时候的复杂度是$O(\log(|V|))$，这对应了路径的长度。
