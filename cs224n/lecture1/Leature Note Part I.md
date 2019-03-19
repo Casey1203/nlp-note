@@ -236,3 +236,43 @@ Mikolov et al.同样在论文中描述了层次softmax，比普通的softmax要�
 层次softmax使用了二叉树来代表单词表中的所有单词。每个叶子是一个单词。从根节点到叶子节点的路径是唯一的。在这个模型中，没有输出词语的表示形式。相反，每个图中的节点（除了根和叶）和模型要学习的向量都有关系。
 
 在这个模型中，在给定向量$w_i$的情况下，词语$w$的概率$P(w|w_i)$，等于从根结点开始随机游走，走到词语$w$对应的叶子节点的概率。这种结构的主要有点是在计算概率的时候的复杂度是$O(\log(|V|))$，这对应了路径的长度。
+
+引入一些标记，$L(w)$是从根结点到叶子节点$w$路径的节点数量。例如，在图４中$L(w_2)$等于３。将$n(w,i)$记作通往$w$的路径上的第$i$个节点，用$v_{n(w,i)}$表示该节点的向量。因此$n(w,1)$表示根结点，$n(w,L(w))$是$w$的父节点。对于每一个内部的节点$n$，我们随机选择一个它的子节点，记作$ch(n)$（例如，总是取左节点）。我们可以计算概率
+$$
+P(w | w_{i})=\prod_{j=1}^{L(w)-1} \sigma\left([n(w, j+1)=\operatorname{ch}(n(w, j))] \cdot v_{n(w, j)}^{T} v_{w_{i}}\right)
+$$
+其中
+$$
+[x]=\left\{\begin{array}{l}{1 \text { if } x \text { is true }} \\ {-1 \text { otherwise }}\end{array}\right.
+$$
+$\sigma(\cdot)$是sigmoid函数。
+
+这个公式的信息量很大，我们仔细来看看。
+
+首先，我们基于从根结点$n(w,1)$到叶子节点$w$的路径的形状，来计算点乘。如果假设$ch(n)$总是代表节点$n$的左节点，那么当路径往左走，$[n(w, j+1)=\operatorname{ch}(n(w, j))]$会返回$１$，否则返回$－１$。
+
+$[n(w, j+1)=\operatorname{ch}(n(w, j))]$也起到了归一化的作用。在节点$n$，如果把往左和往右的概率加起来，对任何的$v_{n}^{T} v_{w_{i}}$，都有
+$$
+\sigma\left(v_{n}^{T} v_{w_{i}}\right)+\sigma\left(-v_{n}^{T} v_{w_{i}}\right)=1
+$$
+归一化同时保证了$\sum_{w=1}^{|V|} P(w | w_{i})=1$，这和原始的softmax有一样的性质。
+
+最后，我们利用点乘，比较了输入的向量$v_{w_i}$和每个内部的节点的向量$v^T_{n(w,j)}$的相似度。下面用一个例子介绍整个过程。
+
+以图４中的$w_2$为例，我们从根结点要进行两次左转，然后一次右转，从而到达$w_2$，因此
+$$
+\begin{aligned} P\left(w_{2} | w_{i}\right) &=p\left(n\left(w_{2}, 1\right), \text { left }\right) \cdot p\left(n\left(w_{2}, 2\right), \text { left }\right) \cdot p\left(n\left(w_{2}, 3\right), \text { right }\right) \\ &=\sigma\left(v_{n\left(w_{2}, 1\right)}^{T} v_{w_{i}}\right) \cdot \sigma\left(v_{n\left(w_{2}, 2\right)}^{T} v_{w_{i}}\right) \cdot \sigma\left(-v_{n\left(w_{2}, 3\right)}^{T} v_{w_{i}}\right) \end{aligned}
+$$
+在训练模型的过程中，我们的目标依旧是最小化负对数似然函数$-\log P(w | w_{i})$。不过，这里不再是对每个输出词语的向量进行更新，而是更新从根结点到叶子节点路径中经过的每个节点的向量。
+
+这个方法的速度取决于二叉树构建的方法和词语被分配到叶子的方式。Mikolov et al.使用了霍夫曼（Huffman）二叉树，这棵树的构建方式是根据词频，频率越高，路径越短。
+
+附录
+
+![Image text](https://raw.githubusercontent.com/Casey1203/nlp-note/master/cs224n/lecture1/img/cbow.png)
+
+![Image text](https://raw.githubusercontent.com/Casey1203/nlp-note/master/cs224n/lecture1/img/sg.png)
+
+![Image text](https://raw.githubusercontent.com/Casey1203/nlp-note/master/cs224n/lecture1/img/sigma.png)
+
+![Image text](https://raw.githubusercontent.com/Casey1203/nlp-note/master/cs224n/lecture1/img/hf_tree.png)
